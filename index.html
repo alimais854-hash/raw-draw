@@ -1,0 +1,1416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>RealTimeZone — Live Drawing Party</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎨</text></svg>" />
+<style>
+/* ============================ THEME ============================ */
+*{box-sizing:border-box}
+:root{
+  --bg:#0a0e16; --panel:#101728; --panel2:#161f33; --line:#22304a;
+  --txt:#e8eefb; --dim:#8b9cba; --acc:#6d5efc; --acc2:#e94ba0;
+  --ok:#22c55e; --warn:#f59e0b; --err:#ef4444;
+  --r:12px;
+}
+html,body{height:100%;margin:0;overflow:hidden}
+body{
+  background:
+    radial-gradient(1100px 700px at 8% -12%, #1d2murky 0%, transparent 60%),
+    radial-gradient(900px 600px at 100% 0%, #2a1840 0%, transparent 55%),
+    var(--bg);
+  color:var(--txt);
+  font-family:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  -webkit-font-smoothing:antialiased;
+  user-select:none;
+}
+button,input,select{font-family:inherit}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:#26344f;border-radius:9px}
+::-webkit-scrollbar-thumb:hover{background:#33456a}
+::-webkit-scrollbar-track{background:transparent}
+
+/* ============================ LAYOUT ============================ */
+.app{display:grid;grid-template-rows:58px 1fr;height:100vh}
+
+/* ---------- Top bar ---------- */
+.topbar{
+  display:flex;align-items:center;gap:12px;padding:0 14px;
+  background:rgba(16,23,40,.85);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line);z-index:40;
+}
+.logo{display:flex;align-items:center;gap:9px;font-weight:800;font-size:16px;letter-spacing:-.4px;white-space:nowrap}
+.logo .dot{
+  width:26px;height:26px;border-radius:9px;
+  background:linear-gradient(135deg,var(--acc),var(--acc2));
+  box-shadow:0 0 18px rgba(109,94,252,.55);
+  display:grid;place-items:center;font-size:14px
+}
+.logo span{background:linear-gradient(90deg,#a99bff,#ff8ac9);-webkit-background-clip:text;background-clip:text;color:transparent}
+.spacer{flex:1}
+.chip{
+  display:flex;align-items:center;gap:8px;padding:6px 11px;border-radius:999px;
+  background:var(--panel2);border:1px solid var(--line);font-size:12.5px;color:var(--dim);
+}
+.chip b{color:var(--txt);font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:1.5px}
+.status-dot{width:7px;height:7px;border-radius:50%;background:#64748b;transition:.3s}
+.status-dot.on{background:var(--ok);box-shadow:0 0 9px var(--ok)}
+.status-dot.warn{background:var(--warn);box-shadow:0 0 9px var(--warn)}
+
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  padding:8px 13px;border-radius:10px;border:1px solid var(--line);
+  background:var(--panel2);color:var(--txt);font-size:13px;font-weight:600;
+  cursor:pointer;transition:.15s;white-space:nowrap;
+}
+.btn:hover{background:#1e2a44;border-color:#33456a;transform:translateY(-1px)}
+.btn:active{transform:translateY(0)}
+.btn.primary{background:linear-gradient(135deg,var(--acc),#8b5cf6);border-color:transparent;box-shadow:0 6px 20px -6px var(--acc)}
+.btn.primary:hover{filter:brightness(1.12)}
+.btn.danger:hover{background:#3b1d24;border-color:#7f2b3a}
+.btn.ghost{background:transparent}
+.btn.sm{padding:6px 9px;font-size:12px}
+.btn.on{background:linear-gradient(135deg,#16a34a,#22c55e);border-color:transparent}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none!important}
+
+/* ---------- Main body ---------- */
+.main{display:grid;grid-template-columns:74px 1fr 316px;min-height:0}
+
+/* ---------- Tool rail ---------- */
+.rail{
+  display:flex;flex-direction:column;align-items:center;gap:7px;
+  padding:12px 8px;background:rgba(16,23,40,.6);border-right:1px solid var(--line);
+  overflow-y:auto;
+}
+.tool{
+  width:48px;height:48px;border-radius:13px;border:1px solid transparent;
+  background:transparent;color:var(--dim);display:grid;place-items:center;
+  cursor:pointer;transition:.15s;position:relative;flex:0 0 auto;
+}
+.tool:hover{background:var(--panel2);color:var(--txt)}
+.tool.active{
+  background:linear-gradient(135deg,rgba(109,94,252,.28),rgba(233,75,160,.18));
+  border-color:rgba(109,94,252,.6);color:#fff;
+  box-shadow:0 0 16px -4px rgba(109,94,252,.7);
+}
+.tool svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.tool[data-tip]:hover::after{
+  content:attr(data-tip);position:absolute;left:58px;top:50%;transform:translateY(-50%);
+  background:#1c2740;border:1px solid var(--line);padding:5px 9px;border-radius:8px;
+  font-size:11.5px;white-space:nowrap;z-index:60;color:var(--txt);pointer-events:none;
+  box-shadow:0 8px 20px rgba(0,0,0,.5);
+}
+.rail-sep{width:34px;height:1px;background:var(--line);margin:5px 0;flex:0 0 auto}
+.swatch-mini{
+  width:38px;height:38px;border-radius:11px;border:2px solid var(--line);cursor:pointer;
+  flex:0 0 auto;position:relative;overflow:hidden;
+}
+.swatch-mini input{position:absolute;inset:-10px;opacity:0;cursor:pointer;width:200%;height:200%}
+
+/* ---------- Stage ---------- */
+.stage{
+  position:relative;display:grid;place-items:center;min-width:0;min-height:0;
+  padding:16px;overflow:hidden;
+  background-image:radial-gradient(circle at 1px 1px, rgba(255,255,255,.045) 1px, transparent 0);
+  background-size:22px 22px;
+}
+.board-wrap{
+  position:relative;border-radius:14px;overflow:hidden;
+  box-shadow:0 26px 70px -22px rgba(0,0,0,.9), 0 0 0 1px rgba(255,255,255,.07);
+}
+.board-wrap canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#overlay{cursor:crosshair;pointer-events:auto;z-index:2}
+#board{z-index:1}
+
+/* ---------- Side panel ---------- */
+.side{
+  display:flex;flex-direction:column;min-height:0;
+  background:rgba(16,23,40,.6);border-left:1px solid var(--line);
+}
+.sec{padding:12px 14px;border-bottom:1px solid var(--line)}
+.sec-title{
+  font-size:11px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;
+  color:var(--dim);margin:0 0 10px;display:flex;align-items:center;gap:7px;
+}
+.sec-title .cnt{
+  background:var(--panel2);border:1px solid var(--line);border-radius:999px;
+  padding:1px 7px;font-size:10px;letter-spacing:0;
+}
+.players{display:flex;flex-direction:column;gap:6px;max-height:168px;overflow-y:auto}
+.player{
+  display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:9px;
+  background:var(--panel2);font-size:13px;
+}
+.player .av{
+  width:24px;height:24px;border-radius:8px;display:grid;place-items:center;
+  font-size:11px;font-weight:800;color:#0b0f17;flex:0 0 auto;
+}
+.player .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.badge{font-size:9.5px;padding:2px 6px;border-radius:5px;background:#2b3a58;color:#9fb2d4;letter-spacing:.5px;font-weight:700}
+.badge.host{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff}
+
+.timer-row{display:flex;align-items:center;gap:8px}
+.timer-display{
+  font-family:ui-monospace,Menlo,Consolas,monospace;font-size:26px;font-weight:700;
+  letter-spacing:2px;flex:1;text-align:center;color:#a5b4fc;
+  text-shadow:0 0 22px rgba(109,94,252,.55);
+}
+.timer-display.hot{color:#fca5a5;text-shadow:0 0 22px rgba(239,68,68,.6)}
+
+/* Chat */
+.chat{flex:1;display:flex;flex-direction:column;min-height:0;border-bottom:none}
+.msgs{flex:1;overflow-y:auto;padding:10px 14px;display:flex;flex-direction:column;gap:8px;min-height:0}
+.msg{font-size:13px;line-height:1.45;word-break:break-word;animation:pop .18s ease}
+@keyframes pop{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+.msg .who{font-weight:700;margin-right:6px}
+.msg.sys{color:var(--dim);font-size:12px;font-style:italic}
+.chat-input{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--line)}
+.chat-input input{
+  flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:9px;
+  padding:9px 11px;color:var(--txt);font-size:13px;outline:none;transition:.15s;
+}
+.chat-input input:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(109,94,252,.15)}
+
+/* ---------- Modal ---------- */
+.modal{
+  position:fixed;inset:0;z-index:100;display:grid;place-items:center;
+  background:rgba(6,9,16,.82);backdrop-filter:blur(10px);padding:20px;
+  transition:opacity .25s;
+}
+.modal.hidden{opacity:0;pointer-events:none}
+.card{
+  width:min(480px,100%);background:linear-gradient(180deg,#141c30,#0e1524);
+  border:1px solid var(--line);border-radius:20px;padding:30px;
+  box-shadow:0 40px 100px -30px #000;animation:rise .3s cubic-bezier(.2,.9,.3,1.3);
+}
+@keyframes rise{from{opacity:0;transform:translateY(22px) scale(.97)}to{opacity:1;transform:none}}
+.card h1{
+  margin:0 0 6px;font-size:30px;letter-spacing:-1px;
+  background:linear-gradient(90deg,#a99bff,#ff8ac9);-webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.card .sub{color:var(--dim);font-size:13.5px;margin:0 0 22px;line-height:1.5}
+.card label{display:block;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:var(--dim);font-weight:700;margin:0 0 7px}
+.card input{
+  width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:11px;
+  padding:12px 14px;color:var(--txt);font-size:14px;outline:none;transition:.15s;margin-bottom:16px;
+}
+.card input:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(109,94,252,.16)}
+.card .row{display:flex;gap:10px;margin-bottom:16px}
+.card .row .btn{flex:1;padding:13px}
+.join{display:flex;gap:10px}
+.join input{margin:0;flex:1;text-transform:uppercase;letter-spacing:3px;font-weight:700;font-family:ui-monospace,monospace}
+.err{color:var(--err);font-size:12.5px;min-height:16px;margin:10px 0 0;text-align:center}
+.feat{display:flex;flex-wrap:wrap;gap:6px;margin-top:20px;padding-top:18px;border-top:1px solid var(--line)}
+.feat span{font-size:10.5px;color:var(--dim);background:var(--panel2);border:1px solid var(--line);padding:3px 8px;border-radius:6px}
+
+/* ---------- Misc ---------- */
+.toasts{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}
+.toast{
+  background:#1b2540;border:1px solid var(--line);padding:10px 18px;border-radius:11px;
+  font-size:13px;box-shadow:0 16px 40px -12px #000;animation:toastIn .25s ease;color:var(--txt);
+}
+@keyframes toastIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.side-toggle{display:none}
+#audioSink{display:none}
+
+@media (max-width:1000px){
+  .main{grid-template-columns:64px 1fr}
+  .side{position:fixed;top:58px;right:0;bottom:0;width:300px;transform:translateX(102%);
+        transition:transform .28s cubic-bezier(.3,.9,.3,1);z-index:50;box-shadow:-20px 0 50px -20px #000}
+  .side.open{transform:none}
+  .side-toggle{display:inline-flex}
+  .hide-sm{display:none}
+}
+@media (max-width:560px){
+  .logo .txt{display:none}
+  .rail{width:56px;padding:10px 4px}
+  .tool{width:44px;height:44px}
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- ================= TOP BAR ================= -->
+  <header class="topbar">
+    <div class="logo">
+      <div class="dot">🎨</div>
+      <div class="txt">RealTime<span>Zone</span></div>
+    </div>
+
+    <div class="chip" id="roomChip" title="Party code">
+      <span class="status-dot" id="statusDot"></span>
+      <span id="roomLabel">Solo Studio</span>
+    </div>
+
+    <button class="btn sm ghost hide-sm" id="copyLinkBtn" title="Copy invite link">🔗 Invite</button>
+
+    <div class="spacer"></div>
+
+    <button class="btn sm" id="undoBtn" title="Undo (Ctrl+Z)">↶ <span class="hide-sm">Undo</span></button>
+    <button class="btn sm" id="redoBtn" title="Redo (Ctrl+Y)">↷ <span class="hide-sm">Redo</span></button>
+    <button class="btn sm danger" id="clearBtn" title="Clear canvas">🗑 <span class="hide-sm">Clear</span></button>
+    <button class="btn sm primary" id="exportBtn" title="Export PNG">⬇ <span class="hide-sm">PNG</span></button>
+    <button class="btn sm" id="micBtn" title="Toggle microphone">🎙 <span class="hide-sm">Mic</span></button>
+    <button class="btn sm ghost side-toggle" id="sideToggle">☰</button>
+  </header>
+
+  <div class="main">
+    <!-- ================= TOOL RAIL ================= -->
+    <aside class="rail" id="rail">
+      <button class="tool active" data-tool="brush" data-tip="Brush (B)">
+        <svg viewBox="0 0 24 24"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
+      </button>
+      <button class="tool" data-tool="eraser" data-tip="Eraser (E)">
+        <svg viewBox="0 0 24 24"><path d="M20 20H7L3 16a2 2 0 010-3L13 3a2 2 0 013 0l5 5a2 2 0 010 3l-8 8"/><path d="M6 11l7 7"/></svg>
+      </button>
+      <div class="rail-sep"></div>
+      <button class="tool" data-tool="line" data-tip="Line (L)">
+        <svg viewBox="0 0 24 24"><path d="M5 19L19 5"/></svg>
+      </button>
+      <button class="tool" data-tool="rect" data-tip="Rectangle (R)">
+        <svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2"/></svg>
+      </button>
+      <button class="tool" data-tool="ellipse" data-tip="Ellipse (O)">
+        <svg viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="8.5" ry="6.5"/></svg>
+      </button>
+      <div class="rail-sep"></div>
+      <button class="tool" data-tool="fill" data-tip="Fill bucket (F)">
+        <svg viewBox="0 0 24 24"><path d="M19 11l-8-8-8.5 8.5a2 2 0 000 2.8l5.2 5.2a2 2 0 002.8 0L19 11z"/><path d="M5 8l7 7"/><path d="M20.5 15s-1.5 2-1.5 3.2a1.5 1.5 0 003 0C22 17 20.5 15 20.5 15z"/></svg>
+      </button>
+      <button class="tool" data-tool="picker" data-tip="Eyedropper (I)">
+        <svg viewBox="0 0 24 24"><path d="M11 11l-7 7v3h3l7-7"/><path d="M14.5 3.5a2.12 2.12 0 013 3L12 12l-3-3 5.5-5.5z"/></svg>
+      </button>
+      <div class="rail-sep"></div>
+      <div class="swatch-mini" id="colorSwatch" title="Custom color">
+        <input type="color" id="colorPicker" value="#111827"/>
+      </div>
+      <button class="tool" id="bgBtn" data-tip="Toggle canvas background">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 000 18z" fill="currentColor" stroke="none"/></svg>
+      </button>
+    </aside>
+
+    <!-- ================= STAGE ================= -->
+    <section class="stage" id="stage">
+      <div class="board-wrap" id="boardWrap">
+        <canvas id="board"></canvas>
+        <canvas id="overlay"></canvas>
+      </div>
+    </section>
+
+    <!-- ================= SIDE PANEL ================= -->
+    <aside class="side" id="side">
+      <div class="sec">
+        <h3 class="sec-title">Players <span class="cnt" id="playerCount">1</span></h3>
+        <div class="players" id="players"></div>
+      </div>
+
+      <div class="sec">
+        <h3 class="sec-title">Round Timer</h3>
+        <div class="timer-row">
+          <div class="timer-display" id="timerDisplay">00:00</div>
+        </div>
+        <div class="timer-row" style="margin-top:9px">
+          <button class="btn sm" data-timer="30" style="flex:1">30s</button>
+          <button class="btn sm" data-timer="60" style="flex:1">60s</button>
+          <button class="btn sm" data-timer="120" style="flex:1">2m</button>
+          <button class="btn sm ghost" id="timerStop">■</button>
+        </div>
+      </div>
+
+      <div class="sec" style="padding-bottom:8px">
+        <h3 class="sec-title">Brush</h3>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <span style="font-size:11.5px;color:var(--dim);width:44px">Size</span>
+          <input type="range" id="sizeRange" min="1" max="80" value="6" style="flex:1;accent-color:var(--acc)"/>
+          <span style="font-size:12px;width:26px;text-align:right" id="sizeVal">6</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <span style="font-size:11.5px;color:var(--dim);width:44px">Alpha</span>
+          <input type="range" id="opacityRange" min="5" max="100" value="100" style="flex:1;accent-color:var(--acc)"/>
+          <span style="font-size:12px;width:26px;text-align:right" id="opacityVal">1</span>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--dim);cursor:pointer">
+          <input type="checkbox" id="shapeFill" style="accent-color:var(--acc)"/> Fill shapes
+        </label>
+        <div id="palette" style="display:grid;grid-template-columns:repeat(8,1fr);gap:5px;margin-top:12px"></div>
+      </div>
+
+      <div class="chat">
+        <div class="msgs" id="msgs"></div>
+        <div class="chat-input">
+          <input id="chatInput" placeholder="Say something…" maxlength="200"/>
+          <button class="btn sm primary" id="sendBtn">➤</button>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<!-- ================= START MODAL ================= -->
+<div class="modal" id="startModal">
+  <div class="card">
+    <h1>RealTimeZone</h1>
+    <p class="sub">A super-fast collaborative drawing studio. Draw solo, or open a party and create together in real time — with voice chat.</p>
+
+    <label for="nameInput">Your name</label>
+    <input id="nameInput" maxlength="14" placeholder="Artist" autocomplete="off"/>
+
+    <div class="row">
+      <button class="btn" id="soloBtn">🎨 Solo Studio</button>
+      <button class="btn primary" id="createBtn">✨ Create Party</button>
+    </div>
+
+    <label for="codeInput">Join with a party code</label>
+    <div class="join">
+      <input id="codeInput" maxlength="6" placeholder="ABC123" autocomplete="off" spellcheck="false"/>
+      <button class="btn" id="joinBtn">Join →</button>
+    </div>
+
+    <p class="err" id="startErr"></p>
+
+    <div class="feat">
+      <span>Real-time sync</span><span>Party codes</span><span>Voice chat</span><span>Live cursors</span>
+      <span>PNG export</span><span>Undo / Redo</span><span>Flood fill</span><span>Shapes</span>
+      <span>Eyedropper</span><span>Round timer</span><span>Text chat</span><span>Save / Load</span>
+      <span>Fullscreen</span><span>Solo mode</span><span>Shortcuts</span><span>Auto-fit canvas</span>
+    </div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+<div id="audioSink"></div>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+"use strict";
+/* =====================================================================
+   RealTimeZone — real-time collaborative drawing studio
+   ===================================================================== */
+
+/* ------------------------------ CONFIG ------------------------------ */
+const W = 1600, H = 1000;                 // internal canvas resolution
+const PEER_PREFIX = 'rtz-v1-';            // PeerJS id prefix
+const MAX_POINTS_PER_STROKE = 2000;
+
+/* ------------------------------ HELPERS ----------------------------- */
+const $  = s => document.querySelector(s);
+const uid = () => Math.random().toString(36).slice(2, 10);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const makeCode = () => Array.from({length: 6}, () =>
+  CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join('');
+
+const USER_COLORS = ['#6d5efc','#e94ba0','#22c55e','#f59e0b','#06b6d4','#ef4444',
+                     '#a855f7','#14b8a6','#f97316','#3b82f6','#84cc16','#ec4899'];
+const NAMES = ['Pixel','Nova','Zephyr','Ink','Echo','Blaze','Luna','Onyx','Vibe','Astra','Rune','Kite'];
+
+function hexToRgb(hex){
+  const h = hex.replace('#','');
+  const n = parseInt(h.length === 3 ? h.split('').map(c=>c+c).join('') : h, 16);
+  return { r:(n>>16)&255, g:(n>>8)&255, b:n&255 };
+}
+function toast(msg, ms = 2200){
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = msg;
+  $('#toasts').appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transition='.3s'; setTimeout(()=>el.remove(), 320); }, ms);
+}
+
+/* ------------------------------ DOM -------------------------------- */
+const board   = $('#board');
+const overlay = $('#overlay');
+const ctx     = board.getContext('2d', { willReadFrequently: true });
+const octx    = overlay.getContext('2d');
+board.width = W;  board.height = H;
+overlay.width = W; overlay.height = H;
+
+/* ------------------------------ STATE ------------------------------ */
+const state = {
+  tool: 'brush',
+  color: '#111827',
+  size: 6,
+  opacity: 1,
+  bg: '#ffffff',
+  fillShapes: false,
+  name: localStorage.getItem('rtz-name') || (NAMES[Math.floor(Math.random()*NAMES.length)] + Math.floor(Math.random()*90+10)),
+  myColor: USER_COLORS[Math.floor(Math.random()*USER_COLORS.length)]
+};
+
+let ops = [];            // committed operations (the "document")
+let redoStack = [];
+const imgCache = new Map();        // dataURL -> HTMLImageElement
+const liveStrokes = new Map();     // id -> { points, style }
+const remoteCursors = new Map();   // peerId -> { x, y, t, name, color }
+let previewShape = null;           // shape being dragged locally
+
+/* =====================================================================
+   RENDERING
+   ===================================================================== */
+function loadImg(src){
+  return new Promise(res => {
+    if (imgCache.has(src)) return res(imgCache.get(src));
+    const img = new Image();
+    img.onload  = () => { imgCache.set(src, img); res(img); };
+    img.onerror = () => res(null);
+    img.src = src;
+  });
+}
+
+function applyStyle(c, style){
+  c.globalAlpha = style.opacity ?? 1;
+  c.lineCap = 'round';
+  c.lineJoin = 'round';
+  c.lineWidth = style.size ?? 4;
+  const col = style.erase ? state.bg : style.color;
+  c.strokeStyle = col;
+  c.fillStyle = col;
+}
+
+function drawStroke(c, points, style){
+  if (!points || !points.length) return;
+  c.save();
+  applyStyle(c, style);
+  if (points.length === 1){
+    c.beginPath();
+    c.arc(points[0].x, points[0].y, Math.max(0.6, (style.size || 4) / 2), 0, Math.PI * 2);
+    c.fill();
+  } else {
+    c.beginPath();
+    c.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) c.lineTo(points[i].x, points[i].y);
+    c.stroke();
+  }
+  c.restore();
+}
+
+function drawShape(c, s){
+  c.save();
+  applyStyle(c, s);
+  c.beginPath();
+  if (s.kind === 'line'){
+    c.moveTo(s.x1, s.y1); c.lineTo(s.x2, s.y2); c.stroke();
+  } else if (s.kind === 'rect'){
+    const x = Math.min(s.x1, s.x2), y = Math.min(s.y1, s.y2);
+    const w = Math.abs(s.x2 - s.x1), h = Math.abs(s.y2 - s.y1);
+    s.fill ? c.fillRect(x, y, w, h) : c.strokeRect(x, y, w, h);
+  } else {
+    const cx = (s.x1 + s.x2) / 2, cy = (s.y1 + s.y2) / 2;
+    const rx = Math.abs(s.x2 - s.x1) / 2, ry = Math.abs(s.y2 - s.y1) / 2;
+    c.ellipse(cx, cy, Math.max(rx, .5), Math.max(ry, .5), 0, 0, Math.PI * 2);
+    s.fill ? c.fill() : c.stroke();
+  }
+  c.restore();
+}
+
+async function drawOp(c, op){
+  if (op.type === 'stroke')      drawStroke(c, op.points, op);
+  else if (op.type === 'shape')  drawShape(c, op);
+  else if (op.type === 'image'){
+    const img = await loadImg(op.data);
+    if (img) c.drawImage(img, 0, 0, W, H);
+  }
+}
+
+let rendering = false, renderQueued = false;
+async function render(){
+  if (rendering){ renderQueued = true; return; }
+  rendering = true;
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = state.bg;
+  ctx.fillRect(0, 0, W, H);
+  for (const op of ops) await drawOp(ctx, op);
+  rendering = false;
+  if (renderQueued){ renderQueued = false; render(); }
+}
+
+/* =====================================================================
+   OVERLAY LOOP  (live strokes + shape preview + remote cursors)
+   ===================================================================== */
+function drawCursor(c){
+  octx.save();
+  octx.translate(c.x, c.y);
+  octx.fillStyle = c.color;
+  octx.beginPath();
+  octx.moveTo(0,0); octx.lineTo(0,17); octx.lineTo(5.5,12.5);
+  octx.lineTo(9.5,20); octx.lineTo(13,18.2); octx.lineTo(9,11); octx.lineTo(15,10.5);
+  octx.closePath(); octx.fill();
+  octx.strokeStyle = 'rgba(0,0,0,.45)'; octx.lineWidth = 1.5; octx.stroke();
+
+  const label = c.name || 'Guest';
+  octx.font = '700 20px Inter, system-ui, sans-serif';
+  const tw = octx.measureText(label).width;
+  octx.globalAlpha = .92;
+  octx.fillStyle = c.color;
+  octx.fillRect(18, 14, tw + 20, 30);
+  octx.globalAlpha = 1;
+  octx.fillStyle = '#fff';
+  octx.fillText(label, 28, 36);
+  octx.restore();
+}
+
+function overlayLoop(){
+  octx.setTransform(1,0,0,1,0,0);
+  octx.clearRect(0, 0, W, H);
+
+  // live (in-progress) strokes from everyone, including me
+  for (const s of liveStrokes.values()) drawStroke(octx, s.points, s.style);
+
+  // local shape preview
+  if (previewShape) drawShape(octx, previewShape);
+
+  // remote cursors
+  const now = Date.now();
+  for (const [id, c] of remoteCursors){
+    if (now - c.t > 6000){ remoteCursors.delete(id); continue; }
+    drawCursor(c);
+  }
+  requestAnimationFrame(overlayLoop);
+}
+requestAnimationFrame(overlayLoop);
+
+/* =====================================================================
+   NETWORKING  (PeerJS — host acts as hub for data, mesh for voice)
+   ===================================================================== */
+let peer = null;
+let isHost = false;
+let myPeerId = null;
+let roomCode = null;
+let hostConn = null;               // client -> host connection
+const conns = new Map();           // host: peerId -> DataConnection
+let roster = [];                   // [{ id, name, color }]
+let connected = false;
+
+function netSend(msg, exceptId){
+  if (isHost){
+    for (const [id, c] of conns) if (id !== exceptId && c.open) c.send(msg);
+  } else if (hostConn && hostConn.open){
+    hostConn.send(msg);
+  }
+}
+
+function setStatus(kind){
+  const dot = $('#statusDot');
+  dot.className = 'status-dot' + (kind === 'on' ? ' on' : kind === 'warn' ? ' warn' : '');
+}
+
+/* ------------------------------ HOST ------------------------------- */
+function startHost(code){
+  isHost = true;
+  roomCode = code;
+  setStatus('warn');
+
+  peer = new Peer(PEER_PREFIX + code, { debug: 0 });
+
+  peer.on('open', id => {
+    myPeerId = id;
+    connected = true;
+    setStatus('on');
+    roster = [{ id: myPeerId, name: state.name, color: state.myColor }];
+    updateUI();
+    toast('Party created — code ' + code);
+  });
+
+  peer.on('connection', conn => {
+    conn.on('data', d => handleData(d, conn.peer));
+    conn.on('close', () => {
+      conns.delete(conn.peer);
+      roster = roster.filter(r => r.id !== conn.peer);
+      remoteCursors.delete(conn.peer);
+      endCall(conn.peer);
+      broadcastRoster();
+      addSysMsg((roster.find(r=>r.id===conn.peer)?.name || 'Someone') + ' left');
+    });
+  });
+
+  peer.on('call', handleIncomingCall);
+
+  peer.on('error', err => {
+    if (err.type === 'unavailable-id'){
+      toast('Code collision — generating a new one…');
+      peer.destroy();
+      startHost(makeCode());
+    } else {
+      console.warn(err);
+      setStatus('');
+    }
+  });
+}
+
+function broadcastRoster(){
+  roster = roster.filter(r => r.id === myPeerId || conns.has(r.id));
+  netSend({ t: 'roster', roster });
+  updateUI();
+  syncCalls();
+}
+
+/* ------------------------------ CLIENT ----------------------------- */
+function joinRoom(code){
+  isHost = false;
+  roomCode = code;
+  setStatus('warn');
+
+  peer = new Peer({ debug: 0 });
+
+  peer.on('open', id => {
+    myPeerId = id;
+    hostConn = peer.connect(PEER_PREFIX + code, { reliable: true });
+
+    hostConn.on('open', () => {
+      connected = true;
+      setStatus('on');
+      hostConn.send({ t: 'hello', name: state.name, color: state.myColor });
+      toast('Joined party ' + code);
+    });
+
+    hostConn.on('data', d => handleData(d, null));
+    hostConn.on('close', () => {
+      connected = false;
+      setStatus('');
+      toast('Disconnected from host');
+      addSysMsg('Connection to host lost.');
+    });
+  });
+
+  peer.on('call', handleIncomingCall);
+
+  peer.on('error', err => {
+    if (err.type === 'peer-unavailable'){
+      showStartError('Room "' + code + '" not found. Check the code.');
+      setStatus('');
+      peer.destroy(); peer = null;
+    } else {
+      console.warn(err);
+    }
+  });
+}
+
+/* --------------------------- MESSAGE ROUTING ----------------------- */
+function handleData(d, fromId){
+  // Host relays client messages to everyone else
+  if (isHost && fromId && d.t !== 'hello') netSend(d, fromId);
+  applyMsg(d, fromId);
+}
+
+function applyMsg(d, fromId){
+  switch (d.t){
+
+    /* ---- handshake ---- */
+    case 'hello': {
+      if (!isHost) return;
+      roster = roster.filter(r => r.id !== fromId);
+      roster.push({ id: fromId, name: (d.name || 'Guest').slice(0,14), color: d.color || '#888' });
+      conns.get(fromId).send({ t: 'welcome', ops, roster });
+      broadcastRoster();
+      addSysMsg((d.name || 'Guest') + ' joined the party');
+      break;
+    }
+    case 'welcome': {
+      ops = d.ops || [];
+      roster = d.roster || [];
+      render();
+      updateUI();
+      syncCalls();
+      break;
+    }
+    case 'roster': {
+      roster = d.roster || [];
+      updateUI();
+      syncCalls();
+      break;
+    }
+
+    /* ---- drawing ---- */
+    case 'live': {
+      let s = liveStrokes.get(d.id);
+      if (!s){ s = { points: [], style: d.style }; liveStrokes.set(d.id, s); }
+      s.points.push(...d.pts);
+      break;
+    }
+    case 'op': {
+      liveStrokes.delete(d.op.id);
+      ops.push(d.op);
+      redoStack = [];
+      drawOp(ctx, d.op);
+      break;
+    }
+    case 'sync': {
+      ops = d.ops || [];
+      liveStrokes.clear();
+      render();
+      break;
+    }
+    case 'clear': {
+      ops = [];
+      liveStrokes.clear();
+      render();
+      break;
+    }
+
+    /* ---- social ---- */
+    case 'chat': {
+      addMsg(d.name, d.color, d.text);
+      break;
+    }
+    case 'cursor': {
+      const p = roster.find(r => r.id === fromId) || {};
+      remoteCursors.set(fromId, {
+        x: d.x, y: d.y, t: Date.now(),
+        name: p.name || d.name || 'Guest',
+        color: p.color || d.color || '#888'
+      });
+      break;
+    }
+    case 'timer': {
+      if (d.endsAt) runTimer(d.endsAt);
+      else stopTimer();
+      break;
+    }
+  }
+}
+
+/* =====================================================================
+   VOICE CHAT (WebRTC mesh through PeerJS)
+   ===================================================================== */
+let micStream = null;
+let micOn = false;
+const calls = new Map();      // peerId -> MediaConnection
+const audioEls = new Map();   // peerId -> HTMLAudioElement
+
+async function toggleMic(){
+  if (micOn) return stopMic();
+
+  if (!navigator.mediaDevices?.getUserMedia){
+    toast('Microphone not supported in this browser');
+    return;
+  }
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+    });
+    micOn = true;
+    updateUI();
+    syncCalls();
+    toast('🎙 Microphone on');
+  } catch (e){
+    toast('Microphone permission denied');
+  }
+}
+
+function stopMic(){
+  micOn = false;
+  if (micStream){ micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+  for (const [, call] of calls) try { call.close(); } catch(e){}
+  calls.clear();
+  for (const [id, el] of audioEls){ el.remove(); audioEls.delete(id); }
+  updateUI();
+  toast('Microphone off');
+}
+
+function endCall(peerId){
+  const call = calls.get(peerId);
+  if (call) { try { call.close(); } catch(e){} calls.delete(peerId); }
+  const el = audioEls.get(peerId);
+  if (el){ el.remove(); audioEls.delete(peerId); }
+}
+
+function attachCall(call){
+  calls.set(call.peer, call);
+  call.on('stream', stream => {
+    let el = audioEls.get(call.peer);
+    if (!el){
+      el = document.createElement('audio');
+      el.autoplay = true;
+      el.playsInline = true;
+      $('#audioSink').appendChild(el);
+      audioEls.set(call.peer, el);
+    }
+    el.srcObject = stream;
+    el.play().catch(() => {});
+  });
+  call.on('close', () => endCall(call.peer));
+  call.on('error', () => endCall(call.peer));
+}
+
+function syncCalls(){
+  if (!peer || !micOn || !myPeerId) return;
+  for (const p of roster){
+    if (p.id === myPeerId) continue;
+    // Deterministic initiator → avoids double-calling
+    if (myPeerId < p.id && !calls.has(p.id)){
+      try {
+        const call = peer.call(p.id, micStream);
+        if (call) attachCall(call);
+      } catch(e){ /* ignore */ }
+    }
+  }
+}
+
+function handleIncomingCall(call){
+  try {
+    call.answer(micStream || undefined);
+    attachCall(call);
+  } catch(e){ /* ignore */ }
+}
+
+/* =====================================================================
+   DRAWING INPUT
+   ===================================================================== */
+let drawing = false;
+let curPoints = null;
+let curStyle = null;
+let strokeId = null;
+let shapeStart = null;
+let liveBuf = [];
+let lastLiveSend = 0;
+let lastCursorSend = 0;
+
+function getPos(e){
+  const r = overlay.getBoundingClientRect();
+  return {
+    x: clamp((e.clientX - r.left) * (W / r.width), 0, W),
+    y: clamp((e.clientY - r.top)  * (H / r.height), 0, H)
+  };
+}
+
+function beginStroke(p){
+  strokeId = uid();
+  curStyle = {
+    color: state.color,
+    size: state.size,
+    opacity: state.opacity,
+    erase: state.tool === 'eraser'
+  };
+  curPoints = [p];
+  liveBuf = [p];
+  liveStrokes.set(strokeId, { points: curPoints, style: curStyle });
+}
+
+function flushLive(force){
+  const now = performance.now();
+  if (!liveBuf.length) return;
+  if (!force && now - lastLiveSend < 55) return;
+  lastLiveSend = now;
+  netSend({ t: 'live', id: strokeId, pts: liveBuf, style: curStyle });
+  liveBuf = [];
+}
+
+function commitStroke(){
+  liveStrokes.delete(strokeId);
+  const op = {
+    id: strokeId, type: 'stroke',
+    points: curPoints.slice(),
+    color: curStyle.color, size: curStyle.size,
+    opacity: curStyle.opacity, erase: curStyle.erase
+  };
+  ops.push(op);
+  redoStack = [];
+  drawOp(ctx, op);
+  netSend({ t: 'op', op });
+}
+
+overlay.addEventListener('pointerdown', e => {
+  if (e.button !== undefined && e.button !== 0 && e.pointerType === 'mouse') return;
+  overlay.setPointerCapture(e.pointerId);
+  const p = getPos(e);
+
+  switch (state.tool){
+    case 'brush':
+    case 'eraser':
+      drawing = true;
+      beginStroke(p);
+      break;
+
+    case 'line':
+    case 'rect':
+    case 'ellipse':
+      drawing = true;
+      shapeStart = p;
+      previewShape = {
+        type: 'shape', kind: state.tool,
+        x1: p.x, y1: p.y, x2: p.x, y2: p.y,
+        color: state.color, size: state.size,
+        opacity: state.opacity, fill: state.fillShapes
+      };
+      break;
+
+    case 'fill': {
+      const hex = state.color;
+      if (floodFill(Math.round(p.x), Math.round(p.y), hex)){
+        const data = board.toDataURL('image/png');
+        imgCache.delete(data);
+        const op = { id: uid(), type: 'image', data };
+        ops.push(op);
+        redoStack = [];
+        netSend({ t: 'op', op });
+      }
+      break;
+    }
+
+    case 'picker': {
+      const d = ctx.getImageData(Math.round(p.x), Math.round(p.y), 1, 1).data;
+      const hex = '#' + [d[0], d[1], d[2]].map(v => v.toString(16).padStart(2, '0')).join('');
+      setColor(hex);
+      setTool('brush');
+      toast('Picked ' + hex.toUpperCase());
+      break;
+    }
+  }
+});
+
+overlay.addEventListener('pointermove', e => {
+  const p = getPos(e);
+
+  // broadcast my cursor (throttled)
+  const now = performance.now();
+  if (now - lastCursorSend > 45){
+    lastCursorSend = now;
+    netSend({ t: 'cursor', x: p.x, y: p.y, name: state.name, color: state.myColor });
+  }
+
+  if (!drawing) return;
+
+  if (curPoints){
+    const last = curPoints[curPoints.length - 1];
+    if (Math.hypot(p.x - last.x, p.y - last.y) < 2) return;
+    if (curPoints.length >= MAX_POINTS_PER_STROKE) return;
+    curPoints.push(p);
+    liveBuf.push(p);
+    flushLive(false);
+  } else if (previewShape){
+    previewShape.x2 = p.x;
+    previewShape.y2 = p.y;
+  }
+});
+
+function endDrawing(){
+  if (!drawing) return;
+  drawing = false;
+
+  if (curPoints){
+    flushLive(true);
+    commitStroke();
+    curPoints = null;
+    curStyle = null;
+    strokeId = null;
+  } else if (previewShape){
+    const op = { id: uid(), ...previewShape };
+    // ignore microscopic shapes
+    if (Math.hypot(op.x2 - op.x1, op.y2 - op.y1) > 3){
+      ops.push(op);
+      redoStack = [];
+      drawOp(ctx, op);
+      netSend({ t: 'op', op });
+    }
+    previewShape = null;
+    shapeStart = null;
+  }
+}
+overlay.addEventListener('pointerup', endDrawing);
+overlay.addEventListener('pointercancel', endDrawing);
+overlay.addEventListener('pointerleave', e => { if (drawing) endDrawing(); });
+
+/* =====================================================================
+   FLOOD FILL  (scanline, fast)
+   ===================================================================== */
+function floodFill(sx, sy, hex){
+  if (sx < 0 || sy < 0 || sx >= W || sy >= H) return false;
+  const img = ctx.getImageData(0, 0, W, H);
+  const d = img.data;
+  const t = (sy * W + sx) * 4;
+  const tr = d[t], tg = d[t+1], tb = d[t+2];
+  const c = hexToRgb(hex);
+  if (Math.abs(tr - c.r) < 3 && Math.abs(tg - c.g) < 3 && Math.abs(tb - c.b) < 3) return false;
+
+  const tol = 42;
+  const match = p => Math.abs(d[p] - tr) <= tol &&
+                     Math.abs(d[p+1] - tg) <= tol &&
+                     Math.abs(d[p+2] - tb) <= tol;
+
+  const visited = new Uint8Array(W * H);
+  const stack = [sy * W + sx];
+
+  while (stack.length){
+    const idx0 = stack.pop();
+    let y = (idx0 / W) | 0;
+    let x = idx0 - y * W;
+
+    while (x >= 0 && !visited[y*W+x] && match((y*W+x)*4)) x--;
+    x++;
+
+    let spanUp = false, spanDown = false;
+
+    while (x < W && !visited[y*W+x] && match((y*W+x)*4)){
+      const p = (y*W+x)*4;
+      d[p] = c.r; d[p+1] = c.g; d[p+2] = c.b; d[p+3] = 255;
+      visited[y*W+x] = 1;
+
+      if (y > 0){
+        const up = (y-1)*W + x;
+        if (!visited[up] && match(up*4)){ if (!spanUp){ stack.push(up); spanUp = true; } }
+        else spanUp = false;
+      }
+      if (y < H-1){
+        const dn = (y+1)*W + x;
+        if (!visited[dn] && match(dn*4)){ if (!spanDown){ stack.push(dn); spanDown = true; } }
+        else spanDown = false;
+      }
+      x++;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  return true;
+}
+
+/* =====================================================================
+   ACTIONS
+   ===================================================================== */
+function undo(){
+  if (!ops.length) return toast('Nothing to undo');
+  redoStack.push(ops.pop());
+  render();
+  netSend({ t: 'sync', ops });
+}
+function redo(){
+  if (!redoStack.length) return toast('Nothing to redo');
+  ops.push(redoStack.pop());
+  render();
+  netSend({ t: 'sync', ops });
+}
+function clearAll(){
+  if (!ops.length) return;
+  ops = []; redoStack = [];
+  liveStrokes.clear();
+  render();
+  netSend({ t: 'clear' });
+  addSysMsg('Canvas cleared');
+}
+
+function exportPNG(){
+  const a = document.createElement('a');
+  a.download = 'realtimezone-' + new Date().toISOString().slice(0,19).replace(/[:T]/g,'-') + '.png';
+  a.href = board.toDataURL('image/png');
+  a.click();
+  toast('PNG exported');
+}
+
+function saveProject(){
+  const blob = new Blob([JSON.stringify({ v:1, bg: state.bg, ops }, null, 0)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'realtimezone-project.json';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  toast('Project saved');
+}
+
+function loadProject(file){
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      ops = data.ops || [];
+      if (data.bg) state.bg = data.bg;
+      redoStack = [];
+      liveStrokes.clear();
+      render();
+      netSend({ t: 'sync', ops });
+      toast('Project loaded');
+    } catch(e){ toast('Invalid project file'); }
+  };
+  reader.readAsText(file);
+}
+
+/* =====================================================================
+   TIMER
+   ===================================================================== */
+let timerInt = null;
+function fmt(ms){
+  const s = Math.ceil(ms / 1000);
+  return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0');
+}
+function runTimer(endsAt){
+  clearInterval(timerInt);
+  const el = $('#timerDisplay');
+  const tick = () => {
+    const left = endsAt - Date.now();
+    el.textContent = fmt(Math.max(0, left));
+    el.classList.toggle('hot', left <= 10000);
+    if (left <= 0){
+      clearInterval(timerInt);
+      el.textContent = '00:00';
+      el.classList.remove('hot');
+      toast("⏰ Time's up!");
+    }
+  };
+  tick();
+  timerInt = setInterval(tick, 200);
+}
+function startTimer(sec){
+  const endsAt = Date.now() + sec * 1000;
+  netSend({ t: 'timer', endsAt });
+  runTimer(endsAt);
+  toast('Timer started: ' + sec + 's');
+}
+function stopTimer(){
+  clearInterval(timerInt);
+  $('#timerDisplay').textContent = '00:00';
+  $('#timerDisplay').classList.remove('hot');
+}
+
+/* =====================================================================
+   UI
+   ===================================================================== */
+function setTool(t){
+  state.tool = t;
+  document.querySelectorAll('.tool[data-tool]').forEach(b =>
+    b.classList.toggle('active', b.dataset.tool === t));
+  overlay.style.cursor = t === 'picker' ? 'copy' : t === 'fill' ? 'cell' : 'crosshair';
+}
+
+function setColor(hex){
+  state.color = hex;
+  $('#colorPicker').value = hex;
+  $('#colorSwatch').style.background = hex;
+}
+
+function buildPalette(){
+  const colors = [
+    '#111827','#ffffff','#ef4444','#f97316','#f59e0b','#eab308','#84cc16','#22c55e',
+    '#14b8a6','#06b6d4','#3b82f6','#6366f1','#8b5cf6','#a855f7','#d946ef','#ec4899',
+    '#7f1d1d','#78350f','#365314','#064e3b','#0c4a6e','#1e1b4b','#4a044e','#831843'
+  ];
+  const pal = $('#palette');
+  pal.innerHTML = '';
+  colors.forEach(c => {
+    const b = document.createElement('button');
+    b.style.cssText = `aspect-ratio:1;border-radius:7px;border:2px solid ${c==='#ffffff'?'#334155':'transparent'};background:${c};cursor:pointer;transition:.12s`;
+    b.onmouseenter = () => b.style.transform = 'scale(1.16)';
+    b.onmouseleave = () => b.style.transform = '';
+    b.onclick = () => { setColor(c); setTool(state.tool === 'eraser' ? 'brush' : state.tool); };
+    pal.appendChild(b);
+  });
+}
+
+function updateUI(){
+  // players
+  const box = $('#players');
+  box.innerHTML = '';
+  const list = isHost || connected ? roster : [{ id:'me', name: state.name, color: state.myColor }];
+  $('#playerCount').textContent = list.length;
+  list.forEach(p => {
+    const el = document.createElement('div');
+    el.className = 'player';
+    el.innerHTML = `
+      <div class="av" style="background:${p.color}">${(p.name||'?')[0].toUpperCase()}</div>
+      <div class="nm">${escapeHtml(p.name || 'Guest')}${p.id === myPeerId ? ' <span style="color:var(--dim)">(you)</span>' : ''}</div>
+      ${p.id === myPeerId && micOn ? '<span class="badge">🎙</span>' : ''}
+      ${p.id === (isHost ? myPeerId : (roster[0]?.id)) && roster.length > 1 ? '<span class="badge host">HOST</span>' : ''}
+    `;
+    box.appendChild(el);
+  });
+
+  // room chip
+  if (roomCode){
+    $('#roomLabel').innerHTML = 'Code <b>' + roomCode + '</b>';
+  } else {
+    $('#roomLabel').textContent = 'Solo Studio';
+  }
+
+  // mic button
+  $('#micBtn').classList.toggle('on', micOn);
+  $('#micBtn').innerHTML = (micOn ? '🎙' : '🔇') + ' <span class="hide-sm">Mic</span>';
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+function addMsg(name, color, text){
+  const el = document.createElement('div');
+  el.className = 'msg';
+  el.innerHTML = `<span class="who" style="color:${color || '#a99bff'}">${escapeHtml(name)}</span>${escapeHtml(text)}`;
+  const m = $('#msgs');
+  m.appendChild(el);
+  m.scrollTop = m.scrollHeight;
+}
+function addSysMsg(text){
+  const el = document.createElement('div');
+  el.className = 'msg sys';
+  el.textContent = text;
+  const m = $('#msgs');
+  m.appendChild(el);
+  m.scrollTop = m.scrollHeight;
+}
+
+function showStartError(msg){ $('#startErr').textContent = msg; }
+
+/* =====================================================================
+   EVENT WIRING
+   ===================================================================== */
+// Tools
+document.querySelectorAll('.tool[data-tool]').forEach(b =>
+  b.addEventListener('click', () => setTool(b.dataset.tool)));
+
+// Color
+$('#colorPicker').addEventListener('input', e => setColor(e.target.value));
+
+// Background toggle
+$('#bgBtn').addEventListener('click', () => {
+  state.bg = state.bg === '#ffffff' ? '#0f172a' : '#ffffff';
+  render();
+  toast('Background: ' + (state.bg === '#ffffff' ? 'Light' : 'Dark'));
+});
+
+// Sliders
+$('#sizeRange').addEventListener('input', e => {
+  state.size = +e.target.value;
+  $('#sizeVal').textContent = state.size;
+});
+$('#opacityRange').addEventListener('input', e => {
+  state.opacity = +e.target.value / 100;
+  $('#opacityVal').textContent = state.opacity.toFixed(2).replace(/0$/,'');
+});
+$('#shapeFill').addEventListener('change', e => state.fillShapes = e.target.checked);
+
+// Buttons
+$('#undoBtn').onclick   = undo;
+$('#redoBtn').onclick   = redo;
+$('#clearBtn').onclick  = () => { if (confirm('Clear the canvas for everyone?')) clearAll(); };
+$('#exportBtn').onclick = exportPNG;
+$('#micBtn').onclick    = toggleMic;
+$('#sideToggle').onclick = () => $('#side').classList.toggle('open');
+
+$('#copyLinkBtn').onclick = () => {
+  if (!roomCode) return toast('You are in Solo mode — create a party first');
+  const url = location.origin + location.pathname + '?room=' + roomCode;
+  navigator.clipboard.writeText(url).then(
+    () => toast('Invite link copied!'),
+    () => toast(url)
+  );
+};
+
+// Timer buttons
+document.querySelectorAll('[data-timer]').forEach(b =>
+  b.onclick = () => startTimer(+b.dataset.timer));
+$('#timerStop').onclick = () => { stopTimer(); netSend({ t: 'timer', endsAt: 0 }); };
+
+// Chat
+function sendChat(){
+  const inp = $('#chatInput');
+  const text = inp.value.trim();
+  if (!text) return;
+  inp.value = '';
+  addMsg(state.name, state.myColor, text);
+  netSend({ t: 'chat', name: state.name, color: state.myColor, text });
+}
+$('#sendBtn').onclick = sendChat;
+$('#chatInput').addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
+
+// Start modal
+$('#nameInput').value = state.name;
+$('#soloBtn').onclick = () => {
+  state.name = ($('#nameInput').value.trim() || 'Artist').slice(0,14);
+  localStorage.setItem('rtz-name', state.name);
+  $('#startModal').classList.add('hidden');
+  updateUI();
+  addSysMsg('Welcome to Solo Studio — press ? for shortcuts');
+};
+$('#createBtn').onclick = () => {
+  state.name = ($('#nameInput').value.trim() || 'Artist').slice(0,14);
+  localStorage.setItem('rtz-name', state.name);
+  $('#startModal').classList.add('hidden');
+  startHost(makeCode());
+  updateUI();
+};
+$('#joinBtn').onclick = () => {
+  const code = $('#codeInput').value.trim().toUpperCase();
+  if (code.length !== 6) return showStartError('Enter a 6-character party code');
+  state.name = ($('#nameInput').value.trim() || 'Artist').slice(0,14);
+  localStorage.setItem('rtz-name', state.name);
+  showStartError('');
+  $('#joinBtn').textContent = 'Connecting…';
+  joinRoom(code);
+  setTimeout(() => {
+    if (connected || peer){ $('#startModal').classList.add('hidden'); }
+  }, 900);
+};
+$('#codeInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('#joinBtn').click(); });
+
+/* ---------------------------- KEYBOARD ----------------------------- */
+document.addEventListener('keydown', e => {
+  const typing = ['INPUT','TEXTAREA'].includes(document.activeElement.tagName);
+  if (typing) return;
+
+  const k = e.key.toLowerCase();
+  if ((e.ctrlKey || e.metaKey) && k === 'z'){ e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+  if ((e.ctrlKey || e.metaKey) && k === 'y'){ e.preventDefault(); redo(); return; }
+  if ((e.ctrlKey || e.metaKey) && k === 's'){ e.preventDefault(); saveProject(); return; }
+  if (e.ctrlKey || e.metaKey) return;
+
+  const map = { b:'brush', e:'eraser', l:'line', r:'rect', o:'ellipse', f:'fill', i:'picker' };
+  if (map[k]) setTool(map[k]);
+  if (k === '[') { state.size = Math.max(1, state.size - 2); $('#sizeRange').value = state.size; $('#sizeVal').textContent = state.size; }
+  if (k === ']') { state.size = Math.min(80, state.size + 2); $('#sizeRange').value = state.size; $('#sizeVal').textContent = state.size; }
+  if (k === 'delete' || k === 'backspace') clearAll();
+  if (k === 'm') toggleMic();
+  if (k === 'p') exportPNG();
+  if (k === 'g') $('#bgBtn').click();
+  if (k === 't') $('#side').classList.toggle('open');
+  if (k === 'f11' || (k === 'f' && e.shiftKey)) { /* native */ }
+  if (k === '?'){
+    toast('B brush · E eraser · L line · R rect · O ellipse · F fill · I picker · [ ] size · M mic · P export · G background', 5000);
+  }
+});
+
+/* ---------------------------- FULLSCREEN ---------------------------- */
+document.addEventListener('keydown', e => {
+  if (e.key === 'F11') { /* let browser handle */ }
+});
+
+/* ---------------------------- RESIZE -------------------------------- */
+function fitStage(){
+  const stage = $('#stage');
+  const wrap = $('#boardWrap');
+  const availW = stage.clientWidth - 32;
+  const availH = stage.clientHeight - 32;
+  const ar = W / H;
+  let w = availW, h = w / ar;
+  if (h > availH){ h = availH; w = h * ar; }
+  wrap.style.width  = Math.max(120, w) + 'px';
+  wrap.style.height = Math.max(75, h) + 'px';
+}
+window.addEventListener('resize', fitStage);
+
+/* ---------------------------- CLEANUP ------------------------------- */
+window.addEventListener('beforeunload', () => {
+  try { peer && peer.destroy(); } catch(e){}
+});
+
+/* =====================================================================
+   BOOT
+   ===================================================================== */
+(function boot(){
+  buildPalette();
+  setColor(state.color);
+  setTool('brush');
+  updateUI();
+  fitStage();
+  render();
+
+  // Auto-join via ?room=CODE
+  const params = new URLSearchParams(location.search);
+  const room = (params.get('room') || '').toUpperCase().slice(0,6);
+  if (room.length === 6){
+    $('#codeInput').value = room;
+    $('#joinBtn').click();
+  }
+
+  addSysMsg('Tip: press ? to see all keyboard shortcuts.');
+})();
+</script>
+</body>
+</html>
